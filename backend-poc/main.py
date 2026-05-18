@@ -54,4 +54,43 @@ def get_telemetria_processada(dispositivo_id: int):
         "dados": df.to_dict(orient="records")
     }
 
+from pydantic import BaseModel
+
+class AlertaRequest(BaseModel):
+    temperatura: float
+    status_degelo: float
+    horario: str
+
+MANUAL_ELETROFRIO_MOCK = """
+MANUAL TÉCNICO ELETROFRIO - BALCÃO FRIGORÍFICO L1
+- Setpoint ideal: -18°C.
+- Durante o ciclo de degelo, a temperatura pode subir temporariamente.
+- Se a temperatura ultrapassar 10°C e o Status de Degelo estiver em 0 (Inativo), 
+  verifique imediatamente se a porta foi deixada aberta ou se há obstrução no ventilador do evaporador.
+- Risco de perda de mercadoria: Alto.
+"""
+
+@app.post("/diagnostico-ia")
+def gerar_diagnostico_rag(alerta: AlertaRequest):
+    
+    contexto_recuperado = MANUAL_ELETROFRIO_MOCK
+    
+    if alerta.temperatura > 10 and alerta.status_degelo == 0.0:
+        resposta_llm = (
+            f"Análise Baseada no Manual Eletrofrio:\n\n"
+            f"Identifiquei que às {alerta.horario} a temperatura atingiu {alerta.temperatura}°C. "
+            f"Como o sistema NÃO está em degelo, isso é uma anomalia grave.\n\n"
+            f"Ação Recomendada (Nível 1): Por favor, vá até a loja e verifique se a porta do balcão "
+            f"foi deixada aberta ou se há gelo bloqueando o ventilador. Caso não resolva, um chamado "
+            f"técnico será aberto automaticamente."
+        )
+    else:
+        resposta_llm = "Oscilação térmica detectada, mas dentro dos parâmetros de segurança do manual."
+
+    return {
+        "status": "sucesso",
+        "diagnostico_rag": resposta_llm,
+        "fonte_utilizada": "Manual Técnico Eletrofrio (Página 14)"
+    }
+
 # uvicorn main:app --reload
