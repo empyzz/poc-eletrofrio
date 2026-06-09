@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
-import '../style/App.css'; // 🔥 Correção do erro aplicada aqui!
+import '../style/App.css'; //  Correção do erro aplicada aqui!
 
 export function RelatoriosChamados() {
   // Dados reais puxados dos cartões para alimentar os gráficos
