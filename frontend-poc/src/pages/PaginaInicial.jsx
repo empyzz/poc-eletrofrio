@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icon } from '../components/Icon';
 import { Topbar, PageHead, Kpi, Pill, TipoPill, PrioPill, Modal } from '../components/ui';
+import { AnaliseCardsPanel } from '../components/AnaliseCards';
 import * as D from '../utils/mockData';
 
 const actions = [
@@ -19,16 +20,37 @@ const systems = [
   { name: 'Pipeline ETL (Python)', ok: 'Atenção', state: 'amber', meta: 'atraso 4min' },
 ];
 
-export function PaginaInicial({ setTelaAtiva }) {
+export function PaginaInicial({ setTelaAtiva, analise, loadingAnalise, dispositivoId }) {
   const [modal, setModal] = useState(null);
   const [semTecnico, setSemTecnico] = useState(() => D.chamados.filter((c) => c.tecnico === '—').slice(0, 5));
   const [atrasadas, setAtrasadas] = useState(() => D.manutencoes.filter((m) => m.atraso));
+  const [novoTitulo, setNovoTitulo] = useState('');
+  const [novaEmpresa, setNovaEmpresa] = useState('');
+  const [novaPrioridade, setNovaPrioridade] = useState(D.prioridades[0]);
+  const [totalDispositivos, setTotalDispositivos] = useState(null);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/dispositivos')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('falha'))))
+      .then((lista) => setTotalDispositivos(lista.length))
+      .catch(() => setTotalDispositivos(null));
+  }, []);
 
   const atribuir = (chamadoId, tecnico) => {
     setSemTecnico((prev) => prev.map((c) => (c.id === chamadoId ? { ...c, tecnico } : c)));
   };
   const confirmarAgendamento = (manutencaoId) => {
     setAtrasadas((prev) => prev.filter((m) => m.id !== manutencaoId));
+  };
+  const criarChamado = () => {
+    if (!novoTitulo.trim()) return;
+    setSemTecnico((prev) => [
+      { id: 'CH-' + Math.floor(Math.random() * 9000 + 1000), titulo: novoTitulo, emp: novaEmpresa || 'Não informado', eq: '—', tecnico: '—' },
+      ...prev,
+    ]);
+    setNovoTitulo('');
+    setNovaEmpresa('');
+    setModal(null);
   };
 
   const actionHandlers = [
@@ -54,11 +76,8 @@ export function PaginaInicial({ setTelaAtiva }) {
 
         {/* KPIs */}
         <div className="kpis">
-          <Kpi icon="cpu" label="Equipamentos monitorados" value="142"
-            sub={<span className="delta up"><Icon name="arrowUp" size={12} />138 operacionais</span>}
-            foot={[{ value: '138', label: 'Ativos', color: 'var(--green)' },
-              { value: '4', label: 'Em falha', color: 'var(--red)' },
-              { value: '3', label: 'Manut.', color: 'var(--amber)' }]} />
+          <Kpi icon="cpu" label="Equipamentos monitorados" value={totalDispositivos ?? '—'}
+            sub={<span className="faint">{totalDispositivos == null ? 'carregando via API Galileo…' : 'via GET /dispositivos (API Galileo)'}</span>} />
           <Kpi icon="file" label="Chamados ativos" value="27" accent="--amber"
             sub={<span className="delta up"><Icon name="arrowUp" size={12} />+12 esta semana</span>}
             foot={[{ value: '5', label: 'Críticos', color: 'var(--red)' },
@@ -76,6 +95,13 @@ export function PaginaInicial({ setTelaAtiva }) {
               { value: '6', label: 'Admins' }]} />
         </div>
 
+        {/* diagnóstico do dispositivo monitorado — mesmos cards configuráveis da Telemetria ao Vivo */}
+        <div className="row" style={{ justifyContent: 'space-between', margin: '4px 0 12px' }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Diagnóstico do dispositivo monitorado</h2>
+          <span className="faint" style={{ fontSize: 12.5 }}>dispositivo {dispositivoId} · <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setTelaAtiva?.('telemetria')}>ver telemetria completa</span></span>
+        </div>
+        <AnaliseCardsPanel analise={analise} loading={loadingAnalise} critica={!!analise?.tem_anomalia_critica} />
+
         {/* priority actions */}
         <div className="row" style={{ justifyContent: 'space-between', margin: '4px 0 12px' }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Ações prioritárias</h2>
@@ -92,7 +118,9 @@ export function PaginaInicial({ setTelaAtiva }) {
                 <Pill kind={a.tone}>{a.tag}</Pill>
               </div>
               <div className="row" style={{ alignItems: 'baseline', gap: 8, margin: '13px 0 2px' }}>
-                <span className="mono" style={{ fontSize: 30, fontWeight: 600, letterSpacing: '-0.03em', color: `var(--${a.tone})` }}>{a.n}</span>
+                <span className="mono" style={{ fontSize: 30, fontWeight: 600, letterSpacing: '-0.03em', color: `var(--${a.tone})` }}>
+                  {i === 1 ? semTecnico.length : i === 2 ? atrasadas.length : a.n}
+                </span>
                 <b style={{ fontSize: 14 }}>{a.title}</b>
               </div>
               <p className="muted" style={{ fontSize: 12.5, margin: '2px 0 15px' }}>{a.desc}</p>
@@ -171,14 +199,18 @@ export function PaginaInicial({ setTelaAtiva }) {
       <Modal open={modal === 'novo'} onClose={() => setModal(null)} title="Novo chamado" sub="Abertura manual de chamado"
         footer={<>
           <button className="btn ghost sm" onClick={() => setModal(null)}>Cancelar</button>
-          <button className="btn primary sm" onClick={() => setModal(null)}>Criar chamado</button>
+          <button className="btn primary sm" disabled={!novoTitulo.trim()} onClick={criarChamado}>Criar chamado</button>
         </>}>
         <div className="form-row"><label className="lbl">Título<span>Descreva o problema observado</span></label>
-          <input className="inp" placeholder="Ex: Temperatura fora do set point" /></div>
+          <input className="inp" placeholder="Ex: Temperatura fora do set point" value={novoTitulo} onChange={(e) => setNovoTitulo(e.target.value)} /></div>
         <div className="form-row"><label className="lbl">Empresa</label>
-          <select className="inp"><option value="">Selecione...</option>{D.sites.map((s) => <option key={s.id}>{s.name}</option>)}</select></div>
+          <select className="inp" value={novaEmpresa} onChange={(e) => setNovaEmpresa(e.target.value)}>
+            <option value="">Selecione...</option>{D.sites.map((s) => <option key={s.id}>{s.name}</option>)}
+          </select></div>
         <div className="form-row"><label className="lbl">Prioridade</label>
-          <select className="inp">{D.prioridades.map((p) => <option key={p}>{p}</option>)}</select></div>
+          <select className="inp" value={novaPrioridade} onChange={(e) => setNovaPrioridade(e.target.value)}>
+            {D.prioridades.map((p) => <option key={p}>{p}</option>)}
+          </select></div>
       </Modal>
 
       <Modal open={modal === 'tecnicos'} onClose={() => setModal(null)} title="Chamados sem responsável" sub={`${semTecnico.length} chamados aguardando atribuição`} width={560}
