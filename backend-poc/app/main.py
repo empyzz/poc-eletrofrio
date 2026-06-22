@@ -9,7 +9,7 @@ scheduler do monitoramento preditivo em background.
 Para rodar: uvicorn app.main:app --reload
 """
 from contextlib import asynccontextmanager
-
+from datetime import datetime 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
         scheduler.shutdown()
 
 
-app = FastAPI(title="Motor Preditivo Eletrofrio - IA & IoT")
+app = FastAPI(title="Motor Preditivo Eletrofrio - IA & IoT", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
